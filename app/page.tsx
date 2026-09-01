@@ -12,6 +12,37 @@ type HudState = {
   shots: number;
   remaining: number;
   combo: number;
+  undosLeft: number;
+  canUndo: boolean;
+};
+
+type VectorSnapshot = [number, number, number];
+type QuaternionSnapshot = [number, number, number, number];
+
+type TargetSnapshot = {
+  position: VectorSnapshot;
+  quaternion: QuaternionSnapshot;
+  velocity: VectorSnapshot;
+  angularVelocity: VectorSnapshot;
+  counted: boolean;
+  removed: boolean;
+};
+
+type GameSnapshot = {
+  version: 2;
+  savedAt: number;
+  level: number;
+  levelSeed: number;
+  score: number;
+  levelStartScore: number;
+  shots: number;
+  combo: number;
+  undosLeft: number;
+  aim: [number, number];
+  result: Result;
+  guideSeen: boolean;
+  soundEnabled: boolean;
+  targets: TargetSnapshot[];
 };
 
 type TargetKind = "can" | "block" | "beam";
@@ -58,8 +89,15 @@ function seededRandom(seed: number) {
   };
 }
 
-function generateLevelLayout(level: number): TargetPlacement[] {
-  const random = seededRandom(level * 982451653 + 4177);
+function createRandomSeed() {
+  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+    return crypto.getRandomValues(new Uint32Array(1))[0] || 1;
+  }
+  return (Date.now() ^ Math.floor(Math.random() * 0xffffffff)) >>> 0;
+}
+
+function generateLevelLayout(level: number, levelSeed: number): TargetPlacement[] {
+  const random = seededRandom((level * 982451653 + levelSeed) >>> 0);
   const items: TargetPlacement[] = [];
   const unit = 0.9;
   const rowHeight = 0.86;
@@ -77,7 +115,7 @@ function generateLevelLayout(level: number): TargetPlacement[] {
     for (let index = 0; index < height; index += 1) add(x, startRow + index, random() < blockChance ? "block" : "can");
   };
   const beam = (x: number, rowIndex: number, width: number) => add(x, rowIndex, "beam", width, 0.5);
-  const variant = (level - 1) % 16;
+  const variant = Math.floor(random() * 16);
 
   switch (variant) {
     case 0: {
@@ -263,13 +301,16 @@ export default function Home() {
   const mountRef = useRef<HTMLDivElement>(null);
   const restartRef = useRef<() => void>(() => undefined);
   const nextLevelRef = useRef<() => void>(() => undefined);
+  const undoRef = useRef<() => void>(() => undefined);
+  const skipProjectileRef = useRef<() => void>(() => undefined);
   const soundToggleRef = useRef<(enabled: boolean) => void>(() => undefined);
-  const [hud, setHud] = useState<HudState>({ level: 1, score: 0, shots: 12, remaining: 14, combo: 0 });
+  const [hud, setHud] = useState<HudState>({ level: 1, score: 0, shots: 12, remaining: 14, combo: 0, undosLeft: 3, canUndo: false });
   const [result, setResult] = useState<Result>(null);
   const [ready, setReady] = useState(false);
   const [guide, setGuide] = useState(true);
   const [error, setError] = useState(false);
   const [soundOn, setSoundOn] = useState(true);
+  const [canSkipProjectile, setCanSkipProjectile] = useState(false);
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -278,17 +319,23 @@ export default function Home() {
     let disposed = false;
     let animationFrame = 0;
     let level = 1;
+    let levelSeed = createRandomSeed();
     let score = 0;
     let levelStartScore = 0;
     let shots = 12;
     let combo = 0;
+    let undosLeft = 3;
     let canFire = true;
     let gameEnded = false;
+    let currentResult: Result = null;
+    let guideSeen = false;
+    let preShotSnapshot: GameSnapshot | null = null;
     let dragging = false;
     let lastTime = performance.now();
     let lastHudAt = 0;
     let recoil = 0;
     let activeProjectile: Projectile | null = null;
+    let skipOffered = false;
     let audioContext: AudioContext | null = null;
     let soundEnabled = true;
     let lastImpactSoundAt = 0;
@@ -582,7 +629,7 @@ export default function Home() {
       if (!force && now - lastHudAt < 90) return;
       lastHudAt = now;
       const remaining = targets.filter((target) => !target.counted).length;
-      setHud({ level, score, shots, remaining, combo });
+      setHud({ level, score, shots, remaining, combo, undosLeft, canUndo: Boolean(preShotSnapshot) && undosLeft > 0 });
     };
 
     const updateCannon = () => {
@@ -619,14 +666,17 @@ export default function Home() {
       updateCannon();
     };
 
-    const removeProjectile = () => {
+    const removeProjectile = (saveAfter = true) => {
       if (!activeProjectile) return;
       world.removeBody(activeProjectile.body);
       scene.remove(activeProjectile.mesh);
       activeProjectile.mesh.geometry.dispose();
       (activeProjectile.mesh.material as THREE.Material).dispose();
       activeProjectile = null;
+      skipOffered = false;
+      setCanSkipProjectile(false);
       if (!gameEnded) canFire = shots > 0;
+      if (saveAfter) persistCurrentState();
     };
 
     const clearTargets = () => {
@@ -659,20 +709,124 @@ export default function Home() {
       targets.push({ mesh, body, counted: false, removed: false, colorIndex: placement.colorIndex, kind: placement.kind });
     };
 
-    const buildLevel = (nextLevel: number, resetScore: boolean) => {
-      removeProjectile();
+    const vectorSnapshot = (value: CANNON.Vec3): VectorSnapshot => [value.x, value.y, value.z];
+    const quaternionSnapshot = (value: CANNON.Quaternion): QuaternionSnapshot => [value.x, value.y, value.z, value.w];
+    const captureSnapshot = (): GameSnapshot => ({
+      version: 2,
+      savedAt: Date.now(),
+      level,
+      levelSeed,
+      score,
+      levelStartScore,
+      shots,
+      combo,
+      undosLeft,
+      aim: [targetPoint.x, targetPoint.y],
+      result: currentResult,
+      guideSeen,
+      soundEnabled,
+      targets: targets.map((target) => ({
+        position: vectorSnapshot(target.body.position),
+        quaternion: quaternionSnapshot(target.body.quaternion),
+        velocity: vectorSnapshot(target.body.velocity),
+        angularVelocity: vectorSnapshot(target.body.angularVelocity),
+        counted: target.counted,
+        removed: target.removed,
+      })),
+    });
+
+    const persistSnapshot = (snapshot: GameSnapshot) => {
+      try {
+        localStorage.setItem("royal-smash-save-v2", JSON.stringify({
+          ...snapshot,
+          savedAt: Date.now(),
+          guideSeen,
+          soundEnabled,
+        }));
+      } catch {
+        // The game remains playable when private browsing blocks storage.
+      }
+    };
+
+    const persistCurrentState = () => {
+      if (activeProjectile && preShotSnapshot) persistSnapshot(preShotSnapshot);
+      else persistSnapshot(captureSnapshot());
+    };
+
+    const readSavedState = (): GameSnapshot | null => {
+      try {
+        const parsed = JSON.parse(localStorage.getItem("royal-smash-save-v2") ?? "null") as Partial<GameSnapshot> | null;
+        if (!parsed || parsed.version !== 2 || !Array.isArray(parsed.targets) || !Number.isFinite(parsed.levelSeed)) return null;
+        return parsed as GameSnapshot;
+      } catch {
+        return null;
+      }
+    };
+
+    const restoreSnapshot = (snapshot: GameSnapshot) => {
+      if (snapshot.targets.length !== targets.length) return false;
+      removeProjectile(false);
+      level = Math.max(1, snapshot.level);
+      levelSeed = snapshot.levelSeed >>> 0;
+      score = Math.max(0, snapshot.score);
+      levelStartScore = Math.max(0, snapshot.levelStartScore);
+      shots = Math.max(0, snapshot.shots);
+      combo = Math.max(0, snapshot.combo);
+      undosLeft = THREE.MathUtils.clamp(snapshot.undosLeft, 0, 3);
+      targetPoint.set(THREE.MathUtils.clamp(snapshot.aim[0], -4.3, 4.3), THREE.MathUtils.clamp(snapshot.aim[1], 1.84, 7.4), 0);
+      currentResult = snapshot.result ?? null;
+      gameEnded = Boolean(currentResult);
+      canFire = !gameEnded && shots > 0;
+      guideSeen = Boolean(snapshot.guideSeen);
+      soundEnabled = snapshot.soundEnabled !== false;
+      setSoundOn(soundEnabled);
+      setGuide(!guideSeen);
+      setResult(currentResult);
+      preShotSnapshot = null;
+
+      snapshot.targets.forEach((state, index) => {
+        const target = targets[index];
+        if (target.removed && !state.removed) {
+          world.addBody(target.body);
+          scene.add(target.mesh);
+        } else if (!target.removed && state.removed) {
+          world.removeBody(target.body);
+          scene.remove(target.mesh);
+        }
+        target.body.position.set(...state.position);
+        target.body.quaternion.set(...state.quaternion);
+        target.body.velocity.set(...state.velocity);
+        target.body.angularVelocity.set(...state.angularVelocity);
+        target.body.wakeUp();
+        target.mesh.position.set(...state.position);
+        target.mesh.quaternion.set(...state.quaternion);
+        target.counted = state.counted;
+        target.removed = state.removed;
+      });
+      solveBallisticAim();
+      syncHud(true);
+      return true;
+    };
+
+    const buildLevel = (nextLevel: number, resetScore: boolean, nextSeed = resetScore ? levelSeed : createRandomSeed(), saveAfter = true) => {
+      removeProjectile(false);
       clearTargets();
       level = nextLevel;
+      levelSeed = nextSeed >>> 0;
       if (resetScore) score = levelStartScore;
       else levelStartScore = score;
-      const layout = generateLevelLayout(level);
+      const layout = generateLevelLayout(level, levelSeed);
       shots = Math.max(10, Math.ceil(layout.length * 0.54) + 3);
       combo = 0;
+      undosLeft = 3;
+      preShotSnapshot = null;
       canFire = true;
       gameEnded = false;
+      currentResult = null;
       setResult(null);
       layout.forEach(createTarget);
       syncHud(true);
+      if (saveAfter) persistCurrentState();
     };
 
     const updateAimFromPointer = (event: PointerEvent) => {
@@ -691,6 +845,8 @@ export default function Home() {
 
     const fire = () => {
       if (!canFire || shots <= 0 || gameEnded || activeProjectile) return;
+      preShotSnapshot = captureSnapshot();
+      persistSnapshot(preShotSnapshot);
       canFire = false;
       ensureAudio();
       const ballColor = COLORS[(shots + level) % COLORS.length];
@@ -719,6 +875,9 @@ export default function Home() {
       });
       world.addBody(body);
       activeProjectile = { mesh: ball, body, bornAt: performance.now() };
+      skipOffered = false;
+      setCanSkipProjectile(false);
+      guideSeen = true;
       setGuide(false);
       syncHud(true);
     };
@@ -751,6 +910,8 @@ export default function Home() {
       const height = Math.max(1, mount.clientHeight);
       renderer.setSize(width, height, false);
       camera.aspect = width / height;
+      camera.fov = camera.aspect < 0.58 ? 42 : camera.aspect > 0.82 ? 35 : 38;
+      camera.position.z = camera.aspect < 0.58 ? 15.5 : 14.8;
       camera.updateProjectionMatrix();
     };
     const resizeObserver = new ResizeObserver(resize);
@@ -765,20 +926,45 @@ export default function Home() {
       } else if (audioContext?.state === "running") {
         void audioContext.suspend();
       }
+      persistCurrentState();
     };
     restartRef.current = () => buildLevel(level, true);
     nextLevelRef.current = () => buildLevel(level + 1, false);
-    soundToggleRef.current = (enabled: boolean) => {
-      soundEnabled = enabled;
-      if (enabled) {
-        ensureAudio();
-        playTone(440, 620, 0.1, 0.035, "sine");
-      } else if (audioContext?.state === "running") {
-        void audioContext.suspend();
+    undoRef.current = () => {
+      if (!preShotSnapshot || undosLeft <= 0) return;
+      const snapshot = preShotSnapshot;
+      const nextUndoCount = Math.max(0, undosLeft - 1);
+      if (restoreSnapshot(snapshot)) {
+        undosLeft = nextUndoCount;
+        preShotSnapshot = null;
+        currentResult = null;
+        gameEnded = false;
+        canFire = shots > 0;
+        setResult(null);
+        syncHud(true);
+        persistCurrentState();
       }
     };
-    buildLevel(1, false);
-    updateAimFromPointer(new PointerEvent("pointermove", { clientX: mount.getBoundingClientRect().left + mount.clientWidth * 0.5, clientY: mount.getBoundingClientRect().top + mount.clientHeight * 0.46 }));
+    skipProjectileRef.current = () => removeProjectile();
+
+    const savedState = readSavedState();
+    if (savedState) {
+      buildLevel(Math.max(1, savedState.level), false, savedState.levelSeed, false);
+      if (!restoreSnapshot(savedState)) {
+        buildLevel(1, false);
+        solveBallisticAim();
+      }
+    } else {
+      buildLevel(1, false);
+      solveBallisticAim();
+    }
+
+    const saveWhenHidden = () => {
+      if (document.visibilityState === "hidden") persistCurrentState();
+    };
+    const saveBeforeLeaving = () => persistCurrentState();
+    document.addEventListener("visibilitychange", saveWhenHidden);
+    window.addEventListener("pagehide", saveBeforeLeaving);
     queueMicrotask(() => setReady(true));
 
     const animate = (now: number) => {
@@ -816,9 +1002,13 @@ export default function Home() {
         activeProjectile.mesh.position.set(activeProjectile.body.position.x, activeProjectile.body.position.y, activeProjectile.body.position.z);
         activeProjectile.mesh.quaternion.set(activeProjectile.body.quaternion.x, activeProjectile.body.quaternion.y, activeProjectile.body.quaternion.z, activeProjectile.body.quaternion.w);
         const age = now - activeProjectile.bornAt;
-        const slow = activeProjectile.body.velocity.length() < 0.22 && age > 2600;
+        if (age > 1800 && !skipOffered) {
+          skipOffered = true;
+          setCanSkipProjectile(true);
+        }
+        const slow = activeProjectile.body.velocity.length() < 0.3 && age > 1700;
         const gone = activeProjectile.body.position.y < -5 || Math.abs(activeProjectile.body.position.x) > 13 || Math.abs(activeProjectile.body.position.z) > 14;
-        if (age > 6500 || slow || gone) removeProjectile();
+        if (age > 4200 || slow || gone) removeProjectile();
       }
 
       const remaining = targets.filter((target) => !target.counted).length;
@@ -826,15 +1016,19 @@ export default function Home() {
         gameEnded = true;
         canFire = false;
         score += shots * 250;
+        currentResult = "clear";
         syncHud(true);
         playClearSound();
         setResult("clear");
+        persistCurrentState();
       } else if (!gameEnded && shots === 0 && !activeProjectile && remaining > 0) {
         gameEnded = true;
         canFire = false;
+        currentResult = "failed";
         syncHud(true);
         playFailSound();
         setResult("failed");
+        persistCurrentState();
       } else {
         syncHud(false);
       }
@@ -849,6 +1043,8 @@ export default function Home() {
       cancelAnimationFrame(animationFrame);
       resizeObserver.disconnect();
       colorScheme.removeEventListener("change", onColorSchemeChange);
+      document.removeEventListener("visibilitychange", saveWhenHidden);
+      window.removeEventListener("pagehide", saveBeforeLeaving);
       renderer.domElement.removeEventListener("pointerdown", onPointerDown);
       renderer.domElement.removeEventListener("pointermove", onPointerMove);
       renderer.domElement.removeEventListener("pointerup", onPointerUp);
@@ -865,20 +1061,49 @@ export default function Home() {
     };
   }, []);
 
-  const currentColor = COLORS[(hud.shots + hud.level) % COLORS.length];
-
   return (
     <main className="physics-page">
       <div className="physics-shell">
-        <header className="physics-header">
-          <div className="game-brand">
-            <span className="game-logo">✦</span>
-            <div><small>REAL 3D PHYSICS</small><h1>炮弹出击 3D</h1></div>
+        <div className="game-stage-card">
+          <div className="game-hud" aria-label="游戏状态">
+            <div><span>关卡</span><strong>{hud.level}</strong></div>
+            <div><span>得分</span><strong>{hud.score.toLocaleString()}</strong></div>
+            <div><span>炮弹</span><strong>{hud.shots}</strong></div>
+            <div><span>目标</span><strong>{hud.remaining}</strong></div>
           </div>
-          <div className="header-actions">
-            <span className="ad-free">无广告 · 真的能玩</span>
+
+          <div className="webgl-stage" ref={mountRef}>
+            {!ready && !error && <div className="loading-card"><span /><b>正在搭建关卡…</b></div>}
+            {error && <div className="loading-card error-card"><b>无法启动 3D 游戏</b><small>请换 Safari、Chrome 或 Edge。</small></div>}
+            {guide && ready && (
+              <div className="drag-guide">
+                <span>↗</span>
+                <b>拖动瞄准 · 松开发射</b>
+              </div>
+            )}
+            {canSkipProjectile && (
+              <button className="continue-shot" onClick={() => skipProjectileRef.current()}>立即继续</button>
+            )}
+            {hud.combo > 1 && <div className="combo-pop">连落 ×{hud.combo}</div>}
+
+            {result && (
+              <div className="game-result">
+                <div className={result === "clear" ? "result-medal" : "result-medal failed"}>{result === "clear" ? "★" : "!"}</div>
+                <small>{result === "clear" ? "平台已清空" : "炮弹用完了"}</small>
+                <h2>{result === "clear" ? `第 ${hud.level} 关通过` : "再试一次"}</h2>
+                <p>{result === "clear" ? `总分 ${hud.score.toLocaleString()}` : "可以撤回最后一发，或重新挑战本关。"}</p>
+                <button onClick={() => result === "clear" ? nextLevelRef.current() : restartRef.current()}>{result === "clear" ? "下一关 →" : "重新挑战"}</button>
+              </div>
+            )}
+          </div>
+
+          <div className="game-toolbar" aria-label="游戏操作">
+            <button disabled={!hud.canUndo} onClick={() => undoRef.current()} aria-label={`撤回上一发，本关剩余 ${hud.undosLeft} 次`}>
+              ↶ 撤回 <b>{hud.undosLeft}</b>
+            </button>
+            <button onClick={() => restartRef.current()} aria-label="重置本关">↻ 重置</button>
             <button
-              className={`sound-toggle ${soundOn ? "is-on" : ""}`}
+              className={soundOn ? "is-on" : ""}
               onClick={() => setSoundOn((current) => {
                 const next = !current;
                 soundToggleRef.current(next);
@@ -889,62 +1114,7 @@ export default function Home() {
               {soundOn ? "🔊 音效" : "🔇 静音"}
             </button>
           </div>
-        </header>
-
-        <section className="physics-layout">
-          <div className="game-stage-card">
-            <div className="game-hud">
-              <div><span>关卡</span><strong>{hud.level}</strong></div>
-              <div><span>得分</span><strong>{hud.score.toLocaleString()}</strong></div>
-              <div><span>炮弹</span><strong>{hud.shots}</strong></div>
-              <div><span>目标</span><strong>{hud.remaining}</strong></div>
-            </div>
-
-            <div className="webgl-stage" ref={mountRef}>
-              {!ready && !error && <div className="loading-card"><span /><b>正在搭建 3D 罐子…</b></div>}
-              {error && <div className="loading-card error-card"><b>当前浏览器无法启动 WebGL</b><small>换 Safari、Chrome 或 Edge 即可运行。</small></div>}
-              {guide && ready && (
-                <div className="drag-guide">
-                  <span>↗</span>
-                  <b>拖动瞄准，松开发射</b>
-                  <small>击中底层，让整堆罐子翻下平台</small>
-                </div>
-              )}
-              <div className="ammo-chip">
-                <i style={{ background: `#${currentColor.body.toString(16).padStart(6, "0")}` }} />
-                下一发
-              </div>
-              {hud.combo > 1 && <div className="combo-pop">连落 ×{hud.combo}</div>}
-
-              {result && (
-                <div className="game-result">
-                  <div className={result === "clear" ? "result-medal" : "result-medal failed"}>{result === "clear" ? "★" : "!"}</div>
-                  <small>{result === "clear" ? "平台已清空" : "还有罐子留在台上"}</small>
-                  <h2>{result === "clear" ? `第 ${hud.level} 关通过` : "差一点"}</h2>
-                  <p>{result === "clear" ? `得分 ${hud.score.toLocaleString()}，剩余炮弹已换算成奖励。` : "试着打底部两侧，让罐子朝平台外翻。"}</p>
-                  <button onClick={() => result === "clear" ? nextLevelRef.current() : restartRef.current()}>{result === "clear" ? "下一关 →" : "重新挑战"}</button>
-                </div>
-              )}
-            </div>
-
-            <div className="stage-controls">
-              <span><i className="physics-dot" /> 每个罐子都有独立重量和碰撞</span>
-              <button onClick={() => restartRef.current()}>↻ 重置本关</button>
-            </div>
-          </div>
-
-          <aside className="physics-side">
-            <span className="side-kicker">这次是真 3D</span>
-            <h2>不再是“碰到就消失”</h2>
-            <p>罐子会根据命中位置产生转动，彼此传递冲量；倒下不算清除，只有真正跌出平台才得分。</p>
-            <div className="physics-features">
-              <div><b>01</b><span><strong>刚体碰撞</strong><small>炮弹、圆罐、金属块互相影响</small></span></div>
-              <div><b>02</b><span><strong>重力与翻滚</strong><small>击中边缘比正面硬撞更有效</small></span></div>
-              <div><b>03</b><span><strong>连续坠落</strong><small>一次推倒多个目标会叠加分数</small></span></div>
-            </div>
-            <div className="tip-card"><b>诀窍</b><span>先打底层最左或最右的罐子，整堆通常会向外倾倒。</span></div>
-          </aside>
-        </section>
+        </div>
       </div>
     </main>
   );
