@@ -16,15 +16,19 @@ import android.view.View;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
 
+import androidx.webkit.WebViewAssetLoader;
+
 public final class MainActivity extends Activity {
-    private static final String GAME_URL = "https://royal-smash.doeacho.chatgpt.site";
-    private static final String GAME_HOST = "royal-smash.doeacho.chatgpt.site";
+    private static final String GAME_URL = "https://appassets.androidplatform.net/assets/index.html";
+    private static final String GAME_HOST = "appassets.androidplatform.net";
     private WebView webView;
+    private WebViewAssetLoader assetLoader;
 
     @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
     @Override
@@ -58,10 +62,21 @@ public final class MainActivity extends Activity {
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+        settings.setAllowFileAccess(false);
+        settings.setAllowContentAccess(false);
 
         webView.addJavascriptInterface(new HapticBridge(this), "AndroidHaptics");
         webView.setWebChromeClient(new WebChromeClient());
+        assetLoader = new WebViewAssetLoader.Builder()
+                .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
+                .addPathHandler("/", new WebViewAssetLoader.AssetsPathHandler(this))
+                .build();
         webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                return assetLoader.shouldInterceptRequest(request.getUrl());
+            }
+
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
@@ -75,15 +90,22 @@ public final class MainActivity extends Activity {
             @Override
             public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
                 super.onReceivedError(view, errorCode, description, failingUrl);
-                if (failingUrl != null && failingUrl.startsWith(GAME_URL)) {
-                    Toast.makeText(MainActivity.this, R.string.network_error, Toast.LENGTH_LONG).show();
+                if (failingUrl != null && failingUrl.startsWith("https://" + GAME_HOST + "/")) {
+                    Toast.makeText(MainActivity.this, R.string.offline_error, Toast.LENGTH_LONG).show();
                 }
             }
         });
 
         setContentView(webView);
-        if (savedInstanceState == null) webView.loadUrl(GAME_URL);
-        else webView.restoreState(savedInstanceState);
+        if (savedInstanceState == null) {
+            webView.loadUrl(GAME_URL);
+        } else {
+            webView.restoreState(savedInstanceState);
+            String restoredUrl = webView.getUrl();
+            if (restoredUrl == null || !restoredUrl.startsWith("https://" + GAME_HOST + "/")) {
+                webView.loadUrl(GAME_URL);
+            }
+        }
     }
 
     private void configureSystemBars() {

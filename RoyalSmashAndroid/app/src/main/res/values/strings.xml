@@ -2,4 +2,5 @@
 <resources>
     <string name="app_name">炮弹出击 3D</string>
     <string name="network_error">游戏连接失败，请检查网络后重新打开。</string>
+    <string name="offline_error">离线游戏资源加载失败，请重新安装应用。</string>
 </resources>

@@ -49,9 +49,4 @@ bash build-apk.sh
 RoyalSmashAndroid/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Android 版本当前加载线上游戏地址：
-
-```text
-https://royal-smash.doeacho.chatgpt.site
-```
-
+Android 版本现在将网页游戏静态资源打包在 APK 内，安装后不依赖线上游戏网站即可运行。

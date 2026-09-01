@@ -41,3 +41,7 @@ next-env.d.ts
 /outputs/
 /work/
 /site-build.tar.gz
+
+# Android/Gradle local state and build outputs
+**/.gradle/
+RoyalSmashAndroid/app/build/
