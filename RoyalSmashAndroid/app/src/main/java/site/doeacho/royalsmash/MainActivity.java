@@ -13,6 +13,7 @@ import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.os.VibratorManager;
 import android.view.View;
+import android.view.ViewGroup;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
@@ -21,6 +22,7 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
+import android.widget.FrameLayout;
 
 import androidx.webkit.WebViewAssetLoader;
 
@@ -41,8 +43,16 @@ public final class MainActivity extends Activity {
         webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
         webView.setVerticalScrollBarEnabled(false);
         webView.setHorizontalScrollBarEnabled(false);
-        webView.setOnApplyWindowInsetsListener((view, insets) -> {
-            view.setPadding(
+
+        FrameLayout root = new FrameLayout(this);
+        root.setBackgroundColor((getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
+                == Configuration.UI_MODE_NIGHT_YES ? Color.rgb(11, 22, 34) : Color.rgb(239, 248, 255));
+        root.addView(webView, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+        root.setOnApplyWindowInsetsListener((view, insets) -> {
+            root.setPadding(
                     insets.getSystemWindowInsetLeft(),
                     insets.getSystemWindowInsetTop(),
                     insets.getSystemWindowInsetRight(),
@@ -96,7 +106,8 @@ public final class MainActivity extends Activity {
             }
         });
 
-        setContentView(webView);
+        setContentView(root);
+        root.requestApplyInsets();
         if (savedInstanceState == null) {
             webView.loadUrl(GAME_URL);
         } else {

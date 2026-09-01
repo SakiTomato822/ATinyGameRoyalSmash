@@ -910,8 +910,15 @@ export default function Home() {
       const height = Math.max(1, mount.clientHeight);
       renderer.setSize(width, height, false);
       camera.aspect = width / height;
-      camera.fov = camera.aspect < 0.58 ? 42 : camera.aspect > 0.82 ? 35 : 38;
-      camera.position.z = camera.aspect < 0.58 ? 15.5 : 14.8;
+      const desiredHorizontalFov = THREE.MathUtils.degToRad(38);
+      const fittedVerticalFov = 2 * Math.atan(Math.tan(desiredHorizontalFov / 2) / camera.aspect);
+      camera.fov = THREE.MathUtils.clamp(THREE.MathUtils.radToDeg(fittedVerticalFov), 38, 56);
+      const actualHorizontalFov = 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * camera.aspect);
+      const fittedDistance = 5.35 / Math.tan(actualHorizontalFov / 2);
+      camera.position.z = Math.max(14.8, fittedDistance);
+      camera.position.y = 6.6 + Math.max(0, camera.position.z - 14.8) * 0.12;
+      const narrowScreenFactor = THREE.MathUtils.clamp((0.7 - camera.aspect) / 0.18, 0, 1);
+      camera.lookAt(0, 2.45 - narrowScreenFactor * 0.7, 0);
       camera.updateProjectionMatrix();
     };
     const resizeObserver = new ResizeObserver(resize);
