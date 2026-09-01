@@ -3,11 +3,19 @@
 [![Build Android APK](https://github.com/SakiTomato822/ATinyGameRoyalSmash/actions/workflows/android.yml/badge.svg)](https://github.com/SakiTomato822/ATinyGameRoyalSmash/actions/workflows/android.yml)
 [![Latest release](https://img.shields.io/github/v/release/SakiTomato822/ATinyGameRoyalSmash?label=APK)](https://github.com/SakiTomato822/ATinyGameRoyalSmash/releases/latest)
 
-拖动瞄准、松开发射，用真实的 3D 碰撞和重力把罐子轰下平台。网页源码与 Android 离线版都在这个仓库中。
+![炮弹出击 3D 游戏主视觉](docs/images/royal-smash-hero.png)
+
+<p align="center">
+  <strong>瞄准底层，一发掀翻整座罐子塔。</strong><br>
+  真实 3D 碰撞 · 随机关卡 · 自动存档 · 离线可玩
+</p>
+
+> [!TIP]
+> **想直接玩？** 前往 [最新版 Release](https://github.com/SakiTomato822/ATinyGameRoyalSmash/releases/latest) 下载 Android APK，安装后无需联网。
 
 ## 下载与玩法
 
-从 [Releases](https://github.com/SakiTomato822/ATinyGameRoyalSmash/releases/latest) 下载最新版 APK。Android 8.0 及以上可安装，游戏运行时不需要网络。
+Android 8.0 及以上可安装。游戏没有账号、广告或在线依赖，划掉后再次打开会继续上次进度。
 
 1. 在游戏区拖动炮口瞄准。
 2. 松开发射，击落全部目标即可过关。
