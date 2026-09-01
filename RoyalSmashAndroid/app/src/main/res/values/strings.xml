@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">炮弹出击 3D</string>
+    <string name="network_error">游戏连接失败，请检查网络后重新打开。</string>
+</resources>

@@ -1,0 +1,190 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "../vendor/shadcn-tailwind-4.13.0.css";
+
+:root {
+  --ink: #21334b;
+  --muted: #708499;
+  --line: rgba(47, 83, 111, .13);
+  --purple: #6248d9;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #edf5ff;
+    --muted: #a6b7c9;
+    --line: rgba(173, 210, 234, .17);
+    --purple: #9b8cff;
+  }
+  html { background: #0d1d2b; }
+  body {
+    background:
+      radial-gradient(circle at 8% 3%, rgba(37, 111, 155, .38), transparent 25rem),
+      radial-gradient(circle at 94% 28%, rgba(125, 91, 33, .25), transparent 23rem),
+      linear-gradient(145deg, #102536, #142f40 54%, #192b31);
+  }
+  .game-brand small { color: #91a9bd; }
+  .ad-free { color: #a8dbc5; background: rgba(37, 91, 76, .5); border-color: rgba(119, 211, 174, .22); }
+  .game-hud > div { background: rgba(26, 49, 66, .82); border-color: rgba(174, 212, 237, .14); box-shadow: 0 7px 20px rgba(0, 0, 0, .16); }
+  .game-hud span, .stage-controls span { color: #9ab0c1; }
+  .game-hud strong { color: #b7c8ff; }
+  .webgl-stage { border-color: rgba(206, 235, 255, .18); box-shadow: 0 27px 75px rgba(0, 0, 0, .3), 0 0 0 1px rgba(160, 211, 239, .1); }
+  .drag-guide, .ammo-chip { color: #e1eff8; background: rgba(19, 43, 58, .86); border-color: rgba(210, 238, 255, .16); }
+  .drag-guide small, .game-result p { color: #a9bdca; }
+  .game-result { color: #eff7ff; background: rgba(13, 34, 47, .84); }
+  .stage-controls button { color: #c0d0db; background: rgba(26, 49, 66, .8); }
+  .stage-controls button:hover { background: #26475b; }
+  .physics-side { background: rgba(22, 45, 61, .84); border-color: rgba(216, 239, 252, .14); box-shadow: 0 20px 50px rgba(0, 0, 0, .2); }
+  .physics-side > p, .physics-features small { color: #a1b5c4; }
+  .physics-features strong { color: #d7e8f3; }
+  .tip-card { color: #b3c7d1; background: rgba(35, 74, 64, .58); }
+}
+
+* { box-sizing: border-box; }
+html { min-height: 100%; background: #edf8ff; }
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100%;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 8% 3%, rgba(119, 211, 255, .42), transparent 25rem),
+    radial-gradient(circle at 94% 28%, rgba(255, 219, 130, .34), transparent 23rem),
+    linear-gradient(145deg, #f7fcff, #eef8ff 54%, #f9fbef);
+  font-family: Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+button { font: inherit; }
+
+.physics-page { min-height: 100dvh; padding: 24px 18px 32px; }
+.physics-shell { width: min(1090px, 100%); margin: 0 auto; }
+.physics-header { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 19px; animation: rise .55s ease both; }
+.header-actions { display: flex; align-items: center; gap: 8px; }
+.game-brand { display: flex; align-items: center; gap: 12px; }
+.game-logo { display: grid; width: 43px; height: 43px; place-items: center; color: #fff; background: linear-gradient(145deg, #7a61ed, #3d61c4); border: 4px solid #fff; border-radius: 15px; box-shadow: 0 8px 18px rgba(69, 82, 177, .24); font-size: 22px; }
+.game-brand small { display: block; margin-bottom: 2px; color: #7c8ca5; font-size: 9px; font-weight: 900; letter-spacing: .16em; }
+.game-brand h1 { margin: 0; font-size: 21px; letter-spacing: -.045em; }
+.header-actions { display: flex; align-items: center; gap: 8px; }
+.ad-free { padding: 9px 13px; color: #568274; background: rgba(236, 250, 239, .78); border: 1px solid rgba(88, 153, 117, .17); border-radius: 999px; font-size: 11px; font-weight: 900; }
+.sound-toggle { cursor: pointer; padding: 9px 12px; color: #728396; background: rgba(255,255,255,.65); border: 1px solid var(--line); border-radius: 999px; box-shadow: 0 5px 14px rgba(66,97,120,.06); font-size: 10px; font-weight: 900; transition: transform .2s, background .2s, color .2s; }
+.sound-toggle.is-on { color: #415bb5; background: rgba(240,244,255,.9); }
+.sound-toggle:hover { transform: translateY(-1px); background: #fff; }
+
+.physics-layout { display: grid; grid-template-columns: minmax(320px, 560px) minmax(270px, 1fr); gap: 25px; align-items: start; animation: rise .65s .07s ease both; }
+.game-stage-card { min-width: 0; }
+.game-hud { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+.game-hud > div { display: flex; align-items: baseline; justify-content: space-between; gap: 5px; padding: 9px 11px; background: rgba(255,255,255,.74); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 7px 20px rgba(70, 105, 130, .05); }
+.game-hud span { color: #8294a8; font-size: 10px; font-weight: 800; }
+.game-hud strong { color: #3c58b5; font-size: 17px; letter-spacing: -.04em; }
+
+.webgl-stage { position: relative; overflow: hidden; width: 100%; aspect-ratio: 9 / 12.2; background: #8edcff; border: 7px solid rgba(255,255,255,.95); border-radius: 27px; box-shadow: 0 27px 75px rgba(51, 88, 118, .2), 0 0 0 1px rgba(48, 82, 108, .1); isolation: isolate; }
+.webgl-canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: crosshair; outline: none; }
+.loading-card { position: absolute; inset: 0; z-index: 7; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: #416078; background: linear-gradient(#8edcff, #91d67d); text-align: center; }
+.loading-card span { width: 34px; height: 34px; border: 4px solid rgba(255,255,255,.45); border-top-color: #fff; border-radius: 50%; animation: spin .8s linear infinite; }
+.loading-card b { font-size: 13px; }
+.error-card small { color: #5e7688; font-size: 11px; }
+.drag-guide { position: absolute; z-index: 4; left: 50%; bottom: 19%; display: flex; width: max-content; max-width: calc(100% - 36px); flex-direction: column; align-items: center; transform: translateX(-50%); padding: 11px 17px; color: #29495f; background: rgba(255,255,255,.88); border: 1px solid rgba(255,255,255,.92); border-radius: 15px; box-shadow: 0 10px 25px rgba(28, 72, 93, .17); text-align: center; pointer-events: none; animation: float 2s ease-in-out infinite; }
+.drag-guide span { margin-bottom: -4px; color: #ee6c50; font-size: 28px; font-weight: 900; line-height: 1; }
+.drag-guide b { font-size: 13px; }
+.drag-guide small { margin-top: 3px; color: #6e8798; font-size: 10px; }
+.ammo-chip { position: absolute; z-index: 3; top: 13px; right: 13px; display: flex; align-items: center; gap: 7px; padding: 7px 10px; color: #586f81; background: rgba(255,255,255,.78); border: 1px solid rgba(255,255,255,.85); border-radius: 999px; box-shadow: 0 6px 15px rgba(41,83,103,.1); font-size: 10px; font-weight: 900; pointer-events: none; }
+.ammo-chip i { width: 11px; height: 11px; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 0 2px rgba(48,78,98,.1); }
+.combo-pop { position: absolute; z-index: 3; top: 54px; left: 50%; transform: translateX(-50%); padding: 7px 12px; color: #fff; background: linear-gradient(105deg, #f2a231, #ef5e58); border: 3px solid rgba(255,255,255,.82); border-radius: 999px; box-shadow: 0 8px 18px rgba(213,88,52,.24); font-size: 12px; font-weight: 900; pointer-events: none; animation: pop .25s ease both; }
+.game-result { position: absolute; inset: 0; z-index: 8; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px; color: #2a415a; background: rgba(230,248,244,.82); backdrop-filter: blur(9px); text-align: center; animation: fade .25s ease both; }
+.result-medal { display: grid; width: 68px; height: 68px; place-items: center; margin-bottom: 10px; color: #fff; background: linear-gradient(145deg, #f9ba3e, #ed5f58); border: 6px solid rgba(255,255,255,.9); border-radius: 22px; box-shadow: 0 11px 24px rgba(215,102,53,.28); font-size: 31px; transform: rotate(-6deg); }
+.result-medal.failed { background: linear-gradient(145deg, #7389e8, #5449c9); }
+.game-result small { color: #e38137; font-size: 11px; font-weight: 900; letter-spacing: .11em; }
+.game-result h2 { margin: 4px 0 0; font-size: 29px; letter-spacing: -.06em; }
+.game-result p { max-width: 310px; margin: 8px 0 18px; color: #6b8194; font-size: 11px; line-height: 1.55; }
+.game-result button { cursor: pointer; padding: 12px 22px; color: #fff; background: linear-gradient(105deg, #5273e7, #714fd2); border: 0; border-radius: 999px; box-shadow: 0 9px 18px rgba(80,87,208,.27); font-size: 12px; font-weight: 900; transition: transform .2s; }
+.game-result button:hover { transform: translateY(-2px); }
+.stage-controls { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 4px 0; }
+.stage-controls span { display: flex; align-items: center; gap: 7px; color: #768b9f; font-size: 10px; }
+.physics-dot { display: block; width: 7px; height: 7px; background: #58b86d; border-radius: 50%; box-shadow: 0 0 0 4px rgba(88,184,109,.14); }
+.stage-controls button { cursor: pointer; padding: 8px 11px; color: #607489; background: rgba(255,255,255,.65); border: 1px solid var(--line); border-radius: 999px; font-size: 10px; font-weight: 900; transition: background .2s, transform .2s; }
+.stage-controls button:hover { background: #fff; transform: translateY(-1px); }
+
+.physics-side { padding: 27px 26px 24px; background: rgba(255,255,255,.76); border: 1px solid rgba(255,255,255,.92); border-radius: 24px; box-shadow: 0 20px 50px rgba(54,89,115,.1); }
+.side-kicker { display: inline-flex; padding: 5px 9px; color: #fff; background: linear-gradient(105deg, #ef8b3a, #ee5863); border-radius: 999px; font-size: 9px; font-weight: 900; letter-spacing: .08em; }
+.physics-side h2 { max-width: 310px; margin: 13px 0 7px; font-size: clamp(23px, 3vw, 31px); line-height: 1.08; letter-spacing: -.065em; }
+.physics-side > p { margin: 0; color: #71869b; font-size: 12px; line-height: 1.7; }
+.physics-features { display: grid; gap: 16px; margin: 24px 0 20px; padding: 20px 0; border-top: 1px dashed rgba(68,103,129,.18); border-bottom: 1px dashed rgba(68,103,129,.18); }
+.physics-features > div { display: grid; grid-template-columns: 31px 1fr; gap: 11px; align-items: start; }
+.physics-features > div > b { padding-top: 2px; color: #ee8950; font-size: 10px; }
+.physics-features span { display: grid; gap: 3px; }
+.physics-features strong { color: #37546f; font-size: 12px; }
+.physics-features small { color: #8295a7; font-size: 10px; line-height: 1.5; }
+.tip-card { display: grid; grid-template-columns: auto 1fr; gap: 9px; padding: 12px; color: #6b7f8f; background: rgba(238,248,241,.86); border-radius: 12px; font-size: 10px; line-height: 1.5; }
+.tip-card b { color: #4f8b63; }
+
+@keyframes rise { from { opacity: 0; transform: translateY(9px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes float { 0%,100% { transform: translateX(-50%); } 50% { transform: translate(-50%, -5px); } }
+@keyframes pop { from { opacity: 0; transform: translate(-50%, 8px) scale(.86); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #e8f1fa;
+    --muted: #93a7ba;
+    --line: rgba(174, 205, 230, .14);
+    --purple: #8b76f2;
+  }
+  html { color-scheme: dark; background: #0b1622; }
+  body {
+    background:
+      radial-gradient(circle at 8% 3%, rgba(46, 126, 172, .22), transparent 25rem),
+      radial-gradient(circle at 94% 28%, rgba(119, 95, 49, .16), transparent 23rem),
+      linear-gradient(145deg, #101f2c, #0b1622 58%, #111d1d);
+  }
+  .game-logo { border-color: rgba(221, 235, 249, .72); box-shadow: 0 8px 22px rgba(0, 0, 0, .34); }
+  .game-brand small { color: #8198ad; }
+  .ad-free { color: #8bc0a7; background: rgba(29, 67, 51, .56); border-color: rgba(119, 196, 155, .18); }
+  .sound-toggle { color: #9bacbd; background: rgba(24, 40, 56, .72); box-shadow: 0 5px 16px rgba(0, 0, 0, .16); }
+  .sound-toggle.is-on { color: #b7c9ff; background: rgba(50, 61, 111, .72); }
+  .sound-toggle:hover { background: #1b2c3e; }
+  .game-hud > div { background: rgba(20, 37, 53, .82); box-shadow: 0 8px 24px rgba(0, 0, 0, .14); }
+  .game-hud span { color: #8298ac; }
+  .game-hud strong { color: #aebeff; }
+  .webgl-stage { border-color: rgba(201, 220, 237, .38); box-shadow: 0 27px 78px rgba(0, 0, 0, .42), 0 0 0 1px rgba(189, 215, 235, .1); }
+  .loading-card { color: #dce9f4; background: linear-gradient(#18394e, #294f3d); }
+  .error-card small { color: #9fb2c2; }
+  .drag-guide { color: #d8e7f2; background: rgba(20, 38, 54, .88); border-color: rgba(186, 212, 232, .22); box-shadow: 0 12px 30px rgba(0, 0, 0, .3); }
+  .drag-guide small { color: #9db1c2; }
+  .ammo-chip { color: #c1d0dc; background: rgba(17, 33, 47, .82); border-color: rgba(189, 214, 233, .18); box-shadow: 0 7px 18px rgba(0, 0, 0, .2); }
+  .ammo-chip i { border-color: #d8e5ee; }
+  .game-result { color: #e9f2f9; background: rgba(10, 25, 35, .86); }
+  .game-result p { color: #9cb0c0; }
+  .stage-controls span { color: #8ea3b5; }
+  .stage-controls button { color: #aabccc; background: rgba(21, 38, 53, .72); }
+  .stage-controls button:hover { background: #1b3042; }
+  .physics-side { background: rgba(18, 34, 48, .82); border-color: rgba(189, 213, 231, .12); box-shadow: 0 22px 55px rgba(0, 0, 0, .25); }
+  .physics-side > p { color: #91a6b8; }
+  .physics-features { border-color: rgba(169, 199, 222, .15); }
+  .physics-features strong { color: #c9d8e4; }
+  .physics-features small { color: #879cad; }
+  .tip-card { color: #a6b9c7; background: rgba(34, 64, 51, .55); }
+  .tip-card b { color: #85c39b; }
+}
+
+@media (max-width: 790px) {
+  .physics-page { padding: 15px 11px 22px; }
+  .physics-header { margin-bottom: 13px; }
+  .physics-layout { display: block; }
+  .game-stage-card { width: min(100%, 540px); margin: 0 auto; }
+  .physics-side { display: none; }
+  .webgl-stage { aspect-ratio: 9 / 13.2; border-width: 6px; border-radius: 24px; }
+}
+
+@media (max-width: 430px) {
+  .game-logo { width: 39px; height: 39px; }
+  .game-brand h1 { font-size: 18px; }
+  .game-brand small { font-size: 8px; }
+  .ad-free { padding: 8px 10px; font-size: 9px; }
+  .header-actions { gap: 5px; }
+  .sound-toggle { padding: 8px 9px; font-size: 9px; }
+  .game-hud { gap: 5px; }
+  .game-hud > div { display: block; padding: 7px 8px; }
+  .game-hud span, .game-hud strong { display: block; }
+  .game-hud strong { margin-top: 2px; font-size: 15px; }
+  .stage-controls span { max-width: 220px; }
+}
